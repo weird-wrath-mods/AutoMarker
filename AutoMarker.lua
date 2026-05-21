@@ -115,33 +115,25 @@ local function OnMouseover()
   end
 end
 
--- /am add: record current target into a pack, using its present mark
--- unit: token to read the mark/name from ("target" for /am add, "mouseover" for sweep)
-local function AddToPack(guid, force_add, pack, unit)
-  local the_pack = pack or currentPackName
-  if not guid then return false, "no_guid" end
-  if not the_pack then return false, "no_pack_name" end
-  unit = unit or "target"
+-- Called from sweep: stores the mouseover's GUID and its current raid mark in `pack`.
+local function AddToPack(guid, pack)
+  if not guid or not pack then return end
 
-  local unitName = UnitName(unit) or AutoMarkerDB.unitCache[guid] or "<unknown>"
-  local raidmark = GetRaidTargetIndex(unit) or 0
+  local unitName = UnitName("mouseover") or AutoMarkerDB.unitCache[guid] or "<unknown>"
+  local raidmark = GetRaidTargetIndex("mouseover") or 0
   local zoneName = GetRealZoneText()
 
-  local mob_pack_name = guidToPack(guid, zoneName)
-  if mob_pack_name and not force_add then return false, "mob_in_pack" end
-
   AutoMarkerDB.customNpcsToMark[zoneName] = AutoMarkerDB.customNpcsToMark[zoneName] or {}
-  AutoMarkerDB.customNpcsToMark[zoneName][the_pack] = AutoMarkerDB.customNpcsToMark[zoneName][the_pack] or {}
+  AutoMarkerDB.customNpcsToMark[zoneName][pack] = AutoMarkerDB.customNpcsToMark[zoneName][pack] or {}
   currentNpcsToMark[zoneName] = currentNpcsToMark[zoneName] or {}
-  currentNpcsToMark[zoneName][the_pack] = currentNpcsToMark[zoneName][the_pack] or {}
+  currentNpcsToMark[zoneName][pack] = currentNpcsToMark[zoneName][pack] or {}
 
-  local existing = AutoMarkerDB.customNpcsToMark[zoneName][the_pack][guid]
+  local existing = AutoMarkerDB.customNpcsToMark[zoneName][pack][guid]
   if existing ~= raidmark then
-    auto_print((existing and L["Updating "] or L["Adding "]) .. unitName .. "(" .. guid .. L[") in pack: "] .. the_pack .. L[" with new mark: "] .. raidMarks[raidmark + 1] .. L[" in zone: "] .. zoneName)
-    AutoMarkerDB.customNpcsToMark[zoneName][the_pack][guid] = raidmark
-    currentNpcsToMark[zoneName][the_pack][guid] = raidmark
+    auto_print((existing and L["Updating "] or L["Adding "]) .. unitName .. "(" .. guid .. L[") in pack: "] .. pack .. L[" with new mark: "] .. raidMarks[raidmark + 1] .. L[" in zone: "] .. zoneName)
+    AutoMarkerDB.customNpcsToMark[zoneName][pack][guid] = raidmark
+    currentNpcsToMark[zoneName][pack][guid] = raidmark
   end
-  return true
 end
 
 -- EVENTS ---------------------------------------------------------------
@@ -195,7 +187,7 @@ local function HandleEvent(self, event, ...)
     OnMouseover()
     if sweep_on then
       local g = UnitGUID("mouseover")
-      if g then AddToPack(g, true, sweepPackName, "mouseover") end
+      if g then AddToPack(g, sweepPackName) end
     end
     return
   end
@@ -221,11 +213,7 @@ local function handleCommands(msg)
   local args = {}
   for word in sgmatch(msg or "", "%S+") do tinsert(args, word) end
   local command, packName = args[1], args[2]
-  local force_add = command == "forceadd"
   local zoneName = GetRealZoneText()
-  local function getGuid()
-    return UnitExists("target") and UnitGUID("target") or nil
-  end
 
   if sweep_on and command ~= "sweep" then
     sweep_on = false
@@ -244,18 +232,6 @@ local function handleCommands(msg)
     if not packName then auto_print(L["You must provide a pack name as well when using set."]); return end
     currentPackName = packName
     auto_print(L["Packname set to: "] .. c(currentPackName, color.orange))
-  elseif command == "get" or command == "g" then
-    auto_print(L["Current packname set to: "] .. c(currentPackName or L["none"], color.orange))
-    local guid = getGuid()
-    if guid then
-      local pn, pack = guidToPack(guid, zoneName)
-      if pn then
-        local mark = (pack[guid] or 0) + 1
-        auto_print(format(L["Mob %s (%s) is %s in pack: %s"], guid, UnitName("target") or "?", raidMarks[mark], c(pn, color.orange)))
-      else
-        auto_print(format(L["Mob %s (%s) is not in any pack."], guid, UnitName("target") or "?"))
-      end
-    end
   elseif command == "clear" or command == "c" then
     if currentPackName then
       if AutoMarkerDB.customNpcsToMark[zoneName] then
@@ -265,22 +241,6 @@ local function handleCommands(msg)
     else
       auto_print(L["A packname isn't currently set."])
     end
-  elseif command == "remove" or command == "r" then
-    local guid = getGuid()
-    if not guid then auto_print(L["Must target a mob to remove it from its pack."]); return end
-    local pn = guidToPack(guid, zoneName)
-    if not pn then auto_print(L["Mob not in any pack."]); return end
-    auto_print(L["Removing mob "] .. (UnitName("target") or "?") .. L[" from pack: "] .. c(pn, color.orange))
-    AutoMarkerDB.customNpcsToMark[zoneName][pn][guid] = nil
-  elseif command == "add" or command == "a" or force_add then
-    local guid = getGuid()
-    local ok, err = AddToPack(guid, force_add, packName)
-    if not ok then
-      if err == "no_guid" then auto_print(L["You must target a mob."])
-      elseif err == "no_pack_name" then auto_print(L["You must provide a pack name to add the mob to."])
-      elseif err == "mob_in_pack" then auto_print(L["The mob is already in a pack. Use "] .. c("/am forceadd", color.yellow) .. L[" to override."])
-      end
-    end
   elseif command == "sweep" then
     local off_aliases = { off = true, stop = true, cancel = true, ["false"] = true }
     if sweep_on and (not packName or packName == sweepPackName or off_aliases[packName]) then
@@ -288,27 +248,21 @@ local function handleCommands(msg)
       auto_print(L["Sweep mode [ "] .. c(L["off"], color.red) .. " ]")
       return
     end
-    if off_aliases[packName] then return end  -- "/am sweep off" while not on: no-op
+    if off_aliases[packName] then return end
     local target = packName or currentPackName
     if not target then auto_print(L["Provide the pack name to this command as well or set one using "] .. c("/am set", color.yellow)); return end
     sweep_on = true; sweepPackName = target
     auto_print(L["Sweep mode [ "] .. c(L["on"], color.green) .. L[" ] sweep your mouse over enemies to add them to pack: "] .. c(sweepPackName, color.orange))
-  elseif command == "scan" then
-    auto_print("AutoMarker cache size: " .. tsize(AutoMarkerDB.unitCache))
   elseif command == "debug" then
     AutoMarkerDB.settings.debug = not AutoMarkerDB.settings.debug
     auto_print(L["Debug mode set to: "] .. (AutoMarkerDB.settings.debug and c(L["on"], color.green) or c(L["off"], color.red)))
   else
     auto_print(L["Commands:"])
     auto_print("/am " .. c("e", color.green) .. "nable - toggle the addon")
-    auto_print("/am " .. c("automark", color.green) .. " - toggle mouseover-automark")
-    auto_print("/am " .. c("s", color.green) .. "et <packname> - set the current pack name")
-    auto_print("/am " .. c("g", color.green) .. "et - info about targeted mob")
+    auto_print("/am " .. c("automark", color.green) .. " - toggle mouseover-automark (default on)")
+    auto_print("/am " .. c("s", color.green) .. "et <packname> - set the current pack name for sweep")
+    auto_print("/am " .. c("sweep", color.green) .. " [packname] - sweep mouse over mobs to add them to a pack; repeat or '/am sweep off' to cancel")
     auto_print("/am " .. c("c", color.green) .. "lear - clear the current custom pack")
-    auto_print("/am " .. c("a", color.green) .. "dd [packname] - add targeted mob (with its current mark) to pack")
-    auto_print("/am " .. c("sweep", color.green) .. " [packname] - sweep mouse over mobs to add them")
-    auto_print("/am " .. c("r", color.green) .. "emove - remove targeted mob from its pack")
-    auto_print("/am scan - report cache size")
     auto_print("/am debug - toggle debug print on each automark")
   end
 end
