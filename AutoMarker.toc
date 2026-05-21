@@ -1,0 +1,10 @@
+## Interface: 30300
+## Title: AutoMarker 1.22.2-wrath-test
+## Notes: Automatically mark raid mobs (Wrath 3.3.5a port - testing feasibility)
+## Author: Weird Vibes (vanilla), ported for Wrath testing
+## SavedVariables: AutoMarkerDB
+## Version: 1.22.2-wrath-test
+
+Locale\Localization.xml
+NPCList.lua
+AutoMarker.lua
