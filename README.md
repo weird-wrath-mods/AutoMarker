@@ -8,10 +8,8 @@ a pack snap to their assigned raid mark instantly.
 ## Commands
 
 - `/am enable` - master toggle
-- `/am automark` - toggle mouseover-automark (default on)
-- `/am set <packname>` - sets the pack name used by sweep when no name is passed
-- `/am sweep [packname]` - start sweep mode; mouseover mobs to add them to the pack with their current raid mark. Repeat, pass the same pack name, or `/am sweep off` to cancel.
-- `/am clear` - clear the pack named by `/am set`
+- `/am sweep <packname>` - start sweep mode; mouseover mobs to add them to the pack with their current raid mark. Repeat the command, pass the same pack name, or `/am sweep off` to cancel.
+- `/am clear <packname>` - delete a custom pack in this zone
 - `/am debug` - print every automark application
 
 ## Defining a pack
@@ -27,3 +25,6 @@ standard raid icon UI, then mouseover during sweep to record.
 
 Solo marking works on this server. In a group you must be party leader or
 raid leader/assist.
+
+___
+Made by and for Weird Vibes
