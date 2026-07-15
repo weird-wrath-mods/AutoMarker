@@ -75,14 +75,10 @@ if GetLocale() == "enUS" then
         ["Cross"] = "Cross",
         ["Skull"] = "Skull",
 
-        ["|cff22CC00 - AutoMark Bindings -"] = "|cff22CC00 - AutoMark Bindings -",
         ["AutoMarker loaded!"] = "AutoMarker loaded!",
         [" Type "] = " Type ",
         [" to see commands."] = " to see commands.",
 
-        ["Keys to hold to activate mouseover mark"] = "Keys to hold to activate mouseover mark",
-        ["Mark mouseover or target"] = "Mark mouseover or target",
-        ["Mark next group based on default order"] = "Mark next group based on default order",
         ["Clear all current marks"] = "Clear all current marks",
         ["Warning:"] = "Warning:",
         [" a mark set while not a leader/assistant is not visible to others"] = " a mark set while not a leader/assistant is not visible to others",

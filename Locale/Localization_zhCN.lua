@@ -64,14 +64,10 @@ if GetLocale() == "zhCN" then
         ["Cross"] = "红叉",
         ["Skull"] = "骷髅",
 
-        ["|cff22CC00 - AutoMark Bindings -"] = "|cff22CC00 - 自动标记 -",
         ["AutoMarker loaded!"] = "AutoMarker 已加载！",
         [" Type "] = " 输入 ",
         [" to see commands."] = " 查看命令。",
 
-        ["Keys to hold to activate mouseover mark"] = "激活鼠标悬停标记需要按住的键",
-        ["Mark mouseover or target"] = "标记指向目标或当前目标",
-        ["Mark next group based on default order"] = "标记下一组",
         ["Clear all current marks"] = "清除所有当前标记",
         ["Warning:"] = "警告：",
         [" a mark set while not a leader/assistant is not visible to others"] = "非领导者/助手设置的标记对其他人不可见",
