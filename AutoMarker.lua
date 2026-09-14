@@ -22,6 +22,7 @@ local UnitGUID           = UnitGUID
 local SetRaidTarget      = SetRaidTarget
 local GetRaidTargetIndex = GetRaidTargetIndex
 local GetRealZoneText    = GetRealZoneText
+local GetTime            = GetTime
 local IsPartyLeader      = IsPartyLeader
 local GetNumPartyMembers = GetNumPartyMembers
 local GetNumRaidMembers  = GetNumRaidMembers
@@ -65,6 +66,14 @@ local sweepPackName = nil
 local currentNpcsToMark = {}
 local currentEntryPacks = {}
 local entrySlots = {}
+
+-- A mark takes a server round-trip to show, and until it does the mob still
+-- reads as unmarked, so a sweep that crosses it again would ask twice. The
+-- server answers a repeat by clearing the icon and setting it again, which
+-- flickers. Hold each request for a short window instead of resending.
+-- ponytail: fixed window, raise it if flicker returns on laggy nights
+local PENDING_WINDOW = 0.3
+local pendingMarks = {}
 
 local autoMarker = CreateFrame("Frame", "AutoMarkerFrame")
 
@@ -189,10 +198,17 @@ local function OnMouseover()
 
   local current = GetRaidTargetIndex("mouseover") or 0
   if current == desired then
+    pendingMarks[guid] = nil
     trace(name .. " already wears " .. raidMarks[desired+1] .. " [" .. source .. "]")
     return
   end
+  local pending = pendingMarks[guid]
+  if pending and pending.mark == desired and GetTime() - pending.t < PENDING_WINDOW then
+    trace(name .. " " .. raidMarks[desired+1] .. " already requested, waiting on server")
+    return
+  end
   SetRaidTarget("mouseover", desired)
+  pendingMarks[guid] = { mark = desired, t = GetTime() }
   trace(name.." ("..guid..") "..raidMarks[current+1].." -> "..raidMarks[desired+1].." ["..source.."]")
 end
 
@@ -278,6 +294,7 @@ local function HandleEvent(self, event, ...)
   -- and a wipe re-summon is covered for free since a wipe ends combat too.
   if event == "PLAYER_REGEN_ENABLED" then
     entrySlots = {}
+    pendingMarks = {}
     return
   end
 
