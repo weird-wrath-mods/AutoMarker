@@ -10,11 +10,19 @@ local TRIANGLE=4 local DIAMOND=3 local CIRCLE=2 local STAR=1 local UNMARKED=0
 
 defaultNpcsToMark = {}
 defaultEntryPacks = {}
+defaultPackRaidSize = {}
 orderedPacks = {}
 
-local function addPack(instance, packName, npcs)
+-- raidSize limits a pack to 10- or 25-man instances. It is needed wherever the
+-- two sizes spawn different mobs: the creation counter then lands on different
+-- mobs, and the same GUID string can name another mob in the other size.
+local function addPack(instance, packName, npcs, raidSize)
   defaultNpcsToMark[instance] = defaultNpcsToMark[instance] or {}
   defaultNpcsToMark[instance][packName] = npcs or {}
+  if raidSize then
+    defaultPackRaidSize[instance] = defaultPackRaidSize[instance] or {}
+    defaultPackRaidSize[instance][packName] = raidSize
+  end
   table.insert(orderedPacks, { instance = instance, packName = packName })
 end
 
@@ -126,20 +134,22 @@ addEntryPack("Naxxramas", "faerlina", {
 
 
 -- =========================================================
--- Ulduar (25-man, GUID-pinned)
+-- Ulduar (GUID-pinned, separate 10- and 25-man packs)
 --
--- Spawn GUIDs are stable across fresh 25-man instances: hallway pack 1 came
--- back byte-identical in four, Twilight pack 1 in two. A capture from an
--- instance that was not fresh had every Twilight counter exactly 14 lower, so
--- these pins come from fresh-instance sweeps. 10-man is not captured; its
--- extra/missing spawns may shift counters, so it needs its own sweeps.
+-- The counter in a GUID is the mob's place in the order the instance creates
+-- units at load: grid by grid, then by spawn id. It holds for the life of one
+-- instance map, but a map rebuilt mid-lockout (restart, or empty past the unload
+-- delay) skips the load-time summons of dead bosses and shifts every later
+-- counter: a non-fresh capture had every Twilight counter exactly 14 lower. So
+-- these pins match fresh instances only.
 -- Guardians and Trash are listed UNMARKED so a stray sweep never marks them.
 -- =========================================================
 
 -- Twilight packs (before General Vezax)
 -- Priority: Adherent, Frost Mage, Pyromancer, Slayer, Shadowblade; icons in
 -- the order Skull, Cross, Square, Moon, Star, Circle. Diamond and Triangle are
--- kept for the fire elementals.
+-- kept for the fire elementals, except in the upper pack: it has no Pyromancer
+-- to summon one, so its second Shadowblade takes Triangle instead of Star.
 
 -- Pyromancers summon the elementals on reset (63774), so their counters come
 -- from the runtime generator: entry match only.
@@ -153,10 +163,10 @@ addPack("Ulduar", "uld_twilight_1_25", {
   ["0xF13000841F00039C"] = CROSS,    -- Twilight Slayer
   ["0xF13000841F00039E"] = SQUARE,   -- Twilight Slayer
   ["0xF13000842000039D"] = MOON,     -- Twilight Shadowblade
-  ["0xF13000842000039F"] = STAR,     -- Twilight Shadowblade
+  ["0xF13000842000039F"] = TRIANGLE, -- Twilight Shadowblade
   ["0xF13000841E00039A"] = UNMARKED, -- Twilight Guardian
   ["0xF13000841E0003A0"] = UNMARKED, -- Twilight Guardian
-})
+}, 25)
 
 -- Lower pack with the 25-man Slayer
 addPack("Ulduar", "uld_twilight_2_25", {
@@ -168,19 +178,19 @@ addPack("Ulduar", "uld_twilight_2_25", {
   ["0xF13000841F0003BA"] = CIRCLE,   -- Twilight Slayer
   ["0xF13000841E000399"] = UNMARKED, -- Twilight Guardian
   ["0xF13000841E0003BB"] = UNMARKED, -- Twilight Guardian
-})
+}, 25)
 
 -- Lower pack, two Pyromancers
 addPack("Ulduar", "uld_twilight_3_25", {
   ["0xF13000841A00038C"] = SKULL,    -- Twilight Adherent
   ["0xF13000841A0003B3"] = CROSS,    -- Twilight Adherent
-  ["0xF13000841B000390"] = SQUARE,   -- Twilight Frost Mage
-  ["0xF13000841B000391"] = MOON,     -- Twilight Frost Mage
+  ["0xF13000841B000391"] = SQUARE,   -- Twilight Frost Mage
+  ["0xF13000841C0003B6"] = MOON,     -- Twilight Pyromancer
   ["0xF13000841C000396"] = STAR,     -- Twilight Pyromancer
-  ["0xF13000841C0003B6"] = CIRCLE,   -- Twilight Pyromancer
+  ["0xF13000841B000390"] = CIRCLE,   -- Twilight Frost Mage
   ["0xF13000841E00039B"] = UNMARKED, -- Twilight Guardian
   ["0xF13000841E0003B5"] = UNMARKED, -- Twilight Guardian
-})
+}, 25)
 
 -- Lower pack, two Pyromancers
 addPack("Ulduar", "uld_twilight_4_25", {
@@ -192,44 +202,121 @@ addPack("Ulduar", "uld_twilight_4_25", {
   ["0xF13000841C0003A3"] = CIRCLE,   -- Twilight Pyromancer
   ["0xF13000841E000398"] = UNMARKED, -- Twilight Guardian
   ["0xF13000841E0003A2"] = UNMARKED, -- Twilight Guardian
-})
+}, 25)
 
 -- Mimiron hallway (Spark of Imagination corridor, before the tram)
--- Boomers (on-contact Bomb Bot blast) take the top icons, then Arachnopod
--- Destroyers, then Clockwork Sappers.
+-- Pack 1: Arachnopod skull. Packs 2 and 3: Sappers skull and cross, then
+-- Arachnopods (pack 3's second takes triangle). Boomers go unmarked.
 
 -- Pack 1: Arachnopod, 2 Boomers, 4 Trash
 addPack("Ulduar", "uld_mim_1_25", {
-  ["0xF130008590000377"] = SKULL,    -- Boomer XP-500
-  ["0xF130008590000378"] = CROSS,    -- Boomer XP-500
-  ["0xF15000858700036B"] = SQUARE,   -- Arachnopod Destroyer (vehicle GUID)
+  ["0xF15000858700036B"] = SKULL,    -- Arachnopod Destroyer (vehicle GUID)
+  ["0xF130008590000377"] = UNMARKED, -- Boomer XP-500
+  ["0xF130008590000378"] = UNMARKED, -- Boomer XP-500
   ["0xF13000858F00036D"] = UNMARKED, -- Trash
   ["0xF13000858F00036E"] = UNMARKED, -- Trash
   ["0xF13000858F00036F"] = UNMARKED, -- Trash
   ["0xF13000858F000370"] = UNMARKED, -- Trash
-})
+}, 25)
 
 -- Pack 2: Arachnopod, 2 Sappers, 6 Trash
 addPack("Ulduar", "uld_mim_2_25", {
-  ["0xF15000858700036C"] = SKULL,    -- Arachnopod Destroyer (vehicle GUID)
+  ["0xF13000859100037C"] = SKULL,    -- Clockwork Sapper
   ["0xF13000859100037B"] = CROSS,    -- Clockwork Sapper
-  ["0xF13000859100037C"] = SQUARE,   -- Clockwork Sapper
+  ["0xF15000858700036C"] = SQUARE,   -- Arachnopod Destroyer (vehicle GUID)
   ["0xF13000858F000371"] = UNMARKED, -- Trash
   ["0xF13000858F000372"] = UNMARKED, -- Trash
   ["0xF13000858F000373"] = UNMARKED, -- Trash
   ["0xF13000858F000374"] = UNMARKED, -- Trash
   ["0xF13000858F000375"] = UNMARKED, -- Trash
   ["0xF13000858F000376"] = UNMARKED, -- Trash
-})
+}, 25)
 
 -- Pack 3: 2 Arachnopods, 2 Boomers, 2 Sappers. Three of these sit at counters
 -- 574-576, far past the rest of the hallway, but two captures in separate
 -- instances returned the same GUIDs.
 addPack("Ulduar", "uld_mim_3_25", {
-  ["0xF130008590000379"] = SKULL,    -- Boomer XP-500
-  ["0xF130008590000575"] = CROSS,    -- Boomer XP-500
+  ["0xF13000859100037A"] = SKULL,    -- Clockwork Sapper
+  ["0xF130008591000576"] = CROSS,    -- Clockwork Sapper
   ["0xF15000858700036A"] = SQUARE,   -- Arachnopod Destroyer (vehicle GUID)
-  ["0xF150008587000574"] = MOON,     -- Arachnopod Destroyer (vehicle GUID)
-  ["0xF13000859100037A"] = UNMARKED, -- Clockwork Sapper
-  ["0xF130008591000576"] = UNMARKED, -- Clockwork Sapper
-})
+  ["0xF150008587000574"] = TRIANGLE, -- Arachnopod Destroyer (vehicle GUID)
+  ["0xF130008590000379"] = UNMARKED, -- Boomer XP-500
+  ["0xF130008590000575"] = UNMARKED, -- Boomer XP-500
+}, 25)
+
+-- Ulduar 10-man
+--
+-- Laid out from the server's creature table (spawn-id order within the grid,
+-- plus one counter after each Pyromancer for the elemental it summons at load)
+-- and anchored by an 11-mob PTR sweep of a fresh 10-man, which fit this layout
+-- at exactly one base. 10-man spawns the same hallway mobs as 25 but fewer
+-- Twilight ones, so the marks follow the same priority over a smaller pack.
+-- Twilight upper pack
+addPack("Ulduar", "uld_twilight_1_10", {
+  ["0xF13000841A00038A"] = SKULL,    -- Twilight Adherent
+  ["0xF13000841F00039B"] = CROSS,    -- Twilight Slayer
+  ["0xF13000842000039D"] = SQUARE,   -- Twilight Shadowblade
+  ["0xF13000841E000399"] = UNMARKED, -- Twilight Guardian
+}, 10)
+
+-- Twilight lower east pack
+addPack("Ulduar", "uld_twilight_2_10", {
+  ["0xF13000841A000389"] = SKULL,    -- Twilight Adherent
+  ["0xF13000841B00038E"] = CROSS,    -- Twilight Frost Mage
+  ["0xF13000841C000393"] = SQUARE,   -- Twilight Pyromancer
+  ["0xF13000842000039C"] = MOON,     -- Twilight Shadowblade
+  ["0xF13000841E000398"] = UNMARKED, -- Twilight Guardian
+}, 10)
+
+-- Twilight lower middle pack
+addPack("Ulduar", "uld_twilight_3_10", {
+  ["0xF13000841A00038B"] = SKULL,    -- Twilight Adherent
+  ["0xF13000841B00038F"] = CROSS,    -- Twilight Frost Mage
+  ["0xF13000841B000390"] = SQUARE,   -- Twilight Frost Mage
+  ["0xF13000841C000395"] = MOON,     -- Twilight Pyromancer
+  ["0xF13000841E00039A"] = UNMARKED, -- Twilight Guardian
+}, 10)
+
+-- Twilight lower west pack
+addPack("Ulduar", "uld_twilight_4_10", {
+  ["0xF13000841A000388"] = SKULL,    -- Twilight Adherent
+  ["0xF13000841B00038C"] = CROSS,    -- Twilight Frost Mage
+  ["0xF13000841B00038D"] = SQUARE,   -- Twilight Frost Mage
+  ["0xF13000841C000391"] = MOON,     -- Twilight Pyromancer
+  ["0xF13000841E000397"] = UNMARKED, -- Twilight Guardian
+}, 10)
+
+-- Mimiron hallway pack 1
+addPack("Ulduar", "uld_mim_1_10", {
+  ["0xF15000858700036C"] = SKULL,    -- Arachnopod Destroyer (vehicle GUID)
+  ["0xF130008590000378"] = UNMARKED, -- Boomer XP-500
+  ["0xF130008590000379"] = UNMARKED, -- Boomer XP-500
+  ["0xF13000858F00036E"] = UNMARKED, -- Trash
+  ["0xF13000858F00036F"] = UNMARKED, -- Trash
+  ["0xF13000858F000370"] = UNMARKED, -- Trash
+  ["0xF13000858F000371"] = UNMARKED, -- Trash
+}, 10)
+
+-- Mimiron hallway pack 2
+addPack("Ulduar", "uld_mim_2_10", {
+  ["0xF13000859100037D"] = SKULL,    -- Clockwork Sapper
+  ["0xF13000859100037C"] = CROSS,    -- Clockwork Sapper
+  ["0xF15000858700036D"] = SQUARE,   -- Arachnopod Destroyer (vehicle GUID)
+  ["0xF13000858F000372"] = UNMARKED, -- Trash
+  ["0xF13000858F000373"] = UNMARKED, -- Trash
+  ["0xF13000858F000374"] = UNMARKED, -- Trash
+  ["0xF13000858F000375"] = UNMARKED, -- Trash
+  ["0xF13000858F000376"] = UNMARKED, -- Trash
+  ["0xF13000858F000377"] = UNMARKED, -- Trash
+}, 10)
+
+-- Mimiron hallway pack 3. Its late Arachnopod, Boomer and Sapper load from a
+-- later grid the creature table cannot place, so they come from a 10-man sweep.
+addPack("Ulduar", "uld_mim_3_10", {
+  ["0xF13000859100037B"] = SKULL,    -- Clockwork Sapper
+  ["0xF13000859100055C"] = CROSS,    -- Clockwork Sapper
+  ["0xF15000858700036B"] = SQUARE,   -- Arachnopod Destroyer (vehicle GUID)
+  ["0xF15000858700055A"] = TRIANGLE, -- Arachnopod Destroyer (vehicle GUID)
+  ["0xF13000859000037A"] = UNMARKED, -- Boomer XP-500
+  ["0xF13000859000055B"] = UNMARKED, -- Boomer XP-500
+}, 10)

@@ -22,6 +22,7 @@ local UnitGUID           = UnitGUID
 local SetRaidTarget      = SetRaidTarget
 local GetRaidTargetIndex = GetRaidTargetIndex
 local GetRealZoneText    = GetRealZoneText
+local GetInstanceInfo    = GetInstanceInfo
 local GetTime            = GetTime
 local IsPartyLeader      = IsPartyLeader
 local GetNumPartyMembers = GetNumPartyMembers
@@ -130,9 +131,13 @@ end
 
 local function guidToPack(id, zone)
   if not currentNpcsToMark or not currentNpcsToMark[zone] then return end
+  local sizes = defaultPackRaidSize and defaultPackRaidSize[zone] or {}
+  local _, _, _, _, maxPlayers = GetInstanceInfo()
   for packName, packInfo in pairs(currentNpcsToMark[zone] or {}) do
-    for guid, _ in pairs(packInfo) do
-      if guid == id then return packName, currentNpcsToMark[zone][packName] end
+    if not sizes[packName] or sizes[packName] == maxPlayers then
+      for guid, _ in pairs(packInfo) do
+        if guid == id then return packName, currentNpcsToMark[zone][packName] end
+      end
     end
   end
   for packName, packInfo in pairs(AutoMarkerDB.customNpcsToMark[zone] or {}) do
