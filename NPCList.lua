@@ -26,6 +26,19 @@ local function addPack(instance, packName, npcs, raidSize)
   table.insert(orderedPacks, { instance = instance, packName = packName })
 end
 
+-- A shift group is a set of GUID packs whose counters move together when the
+-- instance map loads differently (a rebuild after kills, a server update). The
+-- anchor is pack 1's only mob of its type, which is always the first pack
+-- pulled, so seeing it under another counter gives the group's shift.
+defaultShiftGroups = {}
+local function addShiftGroup(instance, name, raidSize, anchor, packNames)
+  defaultShiftGroups[instance] = defaultShiftGroups[instance] or {}
+  local packs = {}
+  for _, p in ipairs(packNames) do packs[p] = true end
+  table.insert(defaultShiftGroups[instance],
+    { name = name, raidSize = raidSize, anchor = anchor, packs = packs })
+end
+
 -- Entry packs match on the creature_template entry carried in every GUID rather
 -- than the whole GUID, for mobs whose spawn counter is allocated at runtime and
 -- therefore differs every pull. Each entry maps to an ordered pool of marks;
@@ -320,3 +333,15 @@ addPack("Ulduar", "uld_mim_3_10", {
   ["0xF13000859000037A"] = UNMARKED, -- Boomer XP-500
   ["0xF13000859000055B"] = UNMARKED, -- Boomer XP-500
 }, 10)
+
+-- Ulduar shift groups. Twilight anchors on the upper pack's lone Adherent and
+-- the hallway on pack 1's Arachnopod. Hallway pack 3's late mobs load from a
+-- later grid and could in principle shift further; they ride the same shift.
+addShiftGroup("Ulduar", "twilight", 25, "0xF13000841A00038B",
+  { "uld_twilight_1_25", "uld_twilight_2_25", "uld_twilight_3_25", "uld_twilight_4_25" })
+addShiftGroup("Ulduar", "twilight", 10, "0xF13000841A00038A",
+  { "uld_twilight_1_10", "uld_twilight_2_10", "uld_twilight_3_10", "uld_twilight_4_10" })
+addShiftGroup("Ulduar", "mimiron", 25, "0xF15000858700036B",
+  { "uld_mim_1_25", "uld_mim_2_25", "uld_mim_3_25" })
+addShiftGroup("Ulduar", "mimiron", 10, "0xF15000858700036C",
+  { "uld_mim_1_10", "uld_mim_2_10", "uld_mim_3_10" })

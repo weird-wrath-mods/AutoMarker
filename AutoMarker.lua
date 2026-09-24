@@ -23,6 +23,8 @@ local SetRaidTarget      = SetRaidTarget
 local GetRaidTargetIndex = GetRaidTargetIndex
 local GetRealZoneText    = GetRealZoneText
 local GetInstanceInfo    = GetInstanceInfo
+local time               = time
+local sformat            = string.format
 local GetTime            = GetTime
 local IsPartyLeader      = IsPartyLeader
 local GetNumPartyMembers = GetNumPartyMembers
@@ -95,6 +97,67 @@ local function guidEntry(guid)
   return tonumber(ssub(guid, 7, 12), 16)
 end
 
+local function guidCounter(guid)
+  return tonumber(ssub(guid, 13, 18), 16)
+end
+
+local function withCounter(guid, counter)
+  return ssub(guid, 1, 12) .. sformat("%06X", counter)
+end
+
+-- Shifts --------------------------------------------------------------------
+--
+-- A pinned counter is the mob's place in the order the instance map created
+-- units at load. A map rebuilt after kills (restart, or left empty past the
+-- unload delay) skips the load-time summons of dead vehicles and bosses, and a
+-- server update can add or drop spawns; either moves every later counter by the
+-- same amount. Shifts are saved, since the next night on the same lockout loads
+-- the same way.
+
+local function shiftGroups(zone)
+  local _, _, _, _, maxPlayers = GetInstanceInfo()
+  local out = {}
+  for _, g in ipairs(defaultShiftGroups and defaultShiftGroups[zone] or {}) do
+    if g.raidSize == maxPlayers then out[#out + 1] = g end
+  end
+  return out
+end
+
+local function shiftKey(zone, g) return zone .. "/" .. g.name .. "/" .. g.raidSize end
+
+local function groupShift(zone, g)
+  local rec = AutoMarkerDB.shifts[shiftKey(zone, g)]
+  return rec and rec.shift or 0
+end
+
+local function onPin(g, zone, entry, counter)
+  for packName in pairs(g.packs) do
+    for pin in pairs(currentNpcsToMark[zone] and currentNpcsToMark[zone][packName] or {}) do
+      if guidEntry(pin) == entry and guidCounter(pin) == counter then return true end
+    end
+  end
+end
+
+local trace
+
+-- Only the anchor's type can move a shift, and only when it lands on no pin of
+-- that type. Any Adherent of any pack fits a correct shift, so a mid-raid
+-- /reload that first shows another pack's Adherent leaves it alone; one that
+-- fits nothing proves the shift wrong, and pack 1 is pulled first, so it is
+-- taken to be pack 1's anchor.
+local function learnShift(guid, zone, entry)
+  for _, g in ipairs(shiftGroups(zone)) do
+    if entry == guidEntry(g.anchor) then
+      local counter = guidCounter(guid)
+      if not onPin(g, zone, entry, counter - groupShift(zone, g)) then
+        local shift = counter - guidCounter(g.anchor)
+        AutoMarkerDB.shifts[shiftKey(zone, g)] = { shift = shift, t = time() }
+        auto_print(c("AutoMarker: ", color.orange) .. g.name .. " (" .. g.raidSize .. ") counters shifted by " .. shift)
+      end
+    end
+  end
+end
+
 local function entryToPack(entry, zone)
   for packName, pools in pairs(currentEntryPacks[zone] or {}) do
     if pools[entry] then return packName, pools[entry] end
@@ -129,21 +192,28 @@ local function assignEntryMark(guid, zone, packName, entry, pool)
   return slots[1].mark, true
 end
 
+-- Returns the pack and the pinned GUID the mouseover stands for, which differs
+-- from the mouseover's own GUID when its shift group has moved.
 local function guidToPack(id, zone)
   if not currentNpcsToMark or not currentNpcsToMark[zone] then return end
   local sizes = defaultPackRaidSize and defaultPackRaidSize[zone] or {}
   local _, _, _, _, maxPlayers = GetInstanceInfo()
+  local shifted = {}
+  for _, g in ipairs(shiftGroups(zone)) do
+    local s = groupShift(zone, g)
+    if s ~= 0 then
+      local pin = withCounter(id, guidCounter(id) - s)
+      for packName in pairs(g.packs) do shifted[packName] = pin end
+    end
+  end
   for packName, packInfo in pairs(currentNpcsToMark[zone] or {}) do
     if not sizes[packName] or sizes[packName] == maxPlayers then
-      for guid, _ in pairs(packInfo) do
-        if guid == id then return packName, currentNpcsToMark[zone][packName] end
-      end
+      local pin = shifted[packName] or id
+      if packInfo[pin] then return packName, packInfo, pin end
     end
   end
   for packName, packInfo in pairs(AutoMarkerDB.customNpcsToMark[zone] or {}) do
-    for guid, _ in pairs(packInfo) do
-      if guid == id then return packName, AutoMarkerDB.customNpcsToMark[zone][packName] end
-    end
+    if packInfo[id] then return packName, packInfo, id end
   end
 end
 
@@ -151,7 +221,7 @@ end
 -- screen: nothing happens. Trace names the reason instead. Repeats are dropped
 -- because UPDATE_MOUSEOVER_UNIT fires constantly.
 local lastTrace
-local function trace(msg)
+function trace(msg)
   if not (AutoMarkerDB and AutoMarkerDB.settings and AutoMarkerDB.settings.debug) then return end
   if lastTrace == msg then return end
   lastTrace = msg
@@ -171,6 +241,7 @@ local function OnMouseover()
   local name  = UnitName("mouseover") or "?"
   local zone  = GetRealZoneText()
   local entry = guidEntry(guid)
+  if entry then learnShift(guid, zone, entry) end
 
   if not (IsShiftKeyDown() and IsControlKeyDown()) then
     trace(name .. " entry=" .. tostring(entry) .. " zone=[" .. tostring(zone) .. "] (hold ctrl+shift to mark)")
@@ -183,9 +254,9 @@ local function OnMouseover()
 
   local desired, source
 
-  local pn, pack = guidToPack(guid, zone)
-  if pn and pack and pack[guid] then
-    desired, source = pack[guid], "pack: "..pn
+  local pn, pack, pin = guidToPack(guid, zone)
+  if pn then
+    desired, source = pack[pin], "pack: "..pn..(pin ~= guid and ", as "..pin or "")
   elseif entry then
     local epn, pool = entryToPack(entry, zone)
     if epn then
@@ -247,6 +318,7 @@ autoMarker:RegisterEvent("PLAYER_REGEN_ENABLED")
 function autoMarker:Initialize()
   if not AutoMarkerDB then AutoMarkerDB = {} end
   if not AutoMarkerDB.customNpcsToMark then AutoMarkerDB.customNpcsToMark = {} end
+  if not AutoMarkerDB.shifts then AutoMarkerDB.shifts = {} end
 
   if not AutoMarkerDB.settings then
     AutoMarkerDB.settings = {}
@@ -356,6 +428,18 @@ local function handleCommands(msg)
   elseif command == "reset" then
     entrySlots = {}
     auto_print("AutoMarker: entry-pack assignments cleared.")
+  elseif command == "shift" then
+    if packName == "reset" then
+      AutoMarkerDB.shifts = {}
+      auto_print("AutoMarker: shifts cleared.")
+    else
+      local any
+      for key, rec in pairs(AutoMarkerDB.shifts) do
+        any = true
+        auto_print(key .. ": " .. rec.shift .. " (set " .. date("%Y-%m-%d %H:%M", rec.t) .. ")")
+      end
+      if not any then auto_print("AutoMarker: no shifts stored.") end
+    end
   elseif command == "debug" then
     AutoMarkerDB.settings.debug = not AutoMarkerDB.settings.debug
     auto_print(L["Debug mode set to: "] .. (AutoMarkerDB.settings.debug and c(L["on"], color.green) or c(L["off"], color.red)))
@@ -365,6 +449,7 @@ local function handleCommands(msg)
     auto_print("/am " .. c("sweep", color.green) .. " <packname> - sweep mouse over mobs to add them; repeat or '/am sweep off' to cancel")
     auto_print("/am " .. c("c", color.green) .. "lear <packname> - delete a custom pack in this zone")
     auto_print("/am " .. c("reset", color.green) .. " - forget entry-pack mark assignments")
+    auto_print("/am shift [reset] - show or clear learned GUID shifts")
     auto_print("/am debug - toggle debug print on each automark")
   end
 end
