@@ -158,6 +158,26 @@ addEntryPack("Naxxramas", "faerlina", {
 -- Guardians and Trash are listed UNMARKED so a stray sweep never marks them.
 -- =========================================================
 
+-- Scrapyard (before XT-002)
+-- Technicians cast Defense Matrix (65070) on a damaged ally within 29 yards, so
+-- they die first. Four creature-table spawns shared by both raid sizes, two on
+-- each side of the yard: diamond and triangle per side, the pool restarting when
+-- combat ends between sides. Entry-matched because no live sweep of their
+-- counters exists, and the dump's counters do not match this server.
+addEntryPack("Ulduar", "uld_scrapyard", {
+  [34267] = { DIAMOND, TRIANGLE }, -- Parts Recovery Technician
+})
+
+-- Storm Tempered Keepers (before Thorim and Hodir's wings)
+-- Four pairs, each one 33699 and one 33722. Both entries share a pool so the
+-- first keeper swept takes skull whichever type it is. Entry-matched to cover
+-- all four pairs in both raid sizes without depending on load-order counters.
+local keeperMarks = { SKULL, CROSS }
+addEntryPack("Ulduar", "uld_keepers", {
+  [33699] = keeperMarks, -- Storm Tempered Keeper
+  [33722] = keeperMarks, -- Storm Tempered Keeper
+})
+
 -- Twilight packs (before General Vezax)
 -- Priority: Adherent, Frost Mage, Pyromancer, Slayer, Shadowblade; icons in
 -- the order Skull, Cross, Square, Moon, Star, Circle. Diamond and Triangle are
@@ -198,9 +218,9 @@ addPack("Ulduar", "uld_twilight_3_25", {
   ["0xF13000841A00038C"] = SKULL,    -- Twilight Adherent
   ["0xF13000841A0003B3"] = CROSS,    -- Twilight Adherent
   ["0xF13000841B000391"] = SQUARE,   -- Twilight Frost Mage
-  ["0xF13000841C0003B6"] = MOON,     -- Twilight Pyromancer
+  ["0xF13000841B000390"] = MOON,     -- Twilight Frost Mage
   ["0xF13000841C000396"] = STAR,     -- Twilight Pyromancer
-  ["0xF13000841B000390"] = CIRCLE,   -- Twilight Frost Mage
+  ["0xF13000841C0003B6"] = CIRCLE,   -- Twilight Pyromancer
   ["0xF13000841E00039B"] = UNMARKED, -- Twilight Guardian
   ["0xF13000841E0003B5"] = UNMARKED, -- Twilight Guardian
 }, 25)
@@ -209,8 +229,8 @@ addPack("Ulduar", "uld_twilight_3_25", {
 addPack("Ulduar", "uld_twilight_4_25", {
   ["0xF13000841A000389"] = SKULL,    -- Twilight Adherent
   ["0xF13000841A0003A1"] = CROSS,    -- Twilight Adherent
-  ["0xF13000841B00038D"] = SQUARE,   -- Twilight Frost Mage
-  ["0xF13000841B00038E"] = MOON,     -- Twilight Frost Mage
+  ["0xF13000841B00038D"] = MOON,   -- Twilight Frost Mage
+  ["0xF13000841B00038E"] = SQUARE,     -- Twilight Frost Mage
   ["0xF13000841C000392"] = STAR,     -- Twilight Pyromancer
   ["0xF13000841C0003A3"] = CIRCLE,   -- Twilight Pyromancer
   ["0xF13000841E000398"] = UNMARKED, -- Twilight Guardian

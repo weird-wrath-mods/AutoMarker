@@ -173,11 +173,13 @@ end
 local function assignEntryMark(guid, zone, packName, entry, pool)
   entrySlots[zone] = entrySlots[zone] or {}
   entrySlots[zone][packName] = entrySlots[zone][packName] or {}
-  local slots = entrySlots[zone][packName][entry]
+  -- Slots hang off the pool table, not the entry, so entries listed with the
+  -- same table draw from one pool in sweep order.
+  local slots = entrySlots[zone][packName][pool]
   if not slots then
     slots = {}
     for i, mark in ipairs(pool) do slots[i] = { mark = mark } end
-    entrySlots[zone][packName][entry] = slots
+    entrySlots[zone][packName][pool] = slots
   end
 
   for _, slot in ipairs(slots) do
