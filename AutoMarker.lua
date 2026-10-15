@@ -130,29 +130,72 @@ local function groupShift(zone, g)
   return rec and rec.shift or 0
 end
 
-local function onPin(g, zone, entry, counter)
+local function groupPins(g, zone, entry)
+  local out = {}
   for packName in pairs(g.packs) do
     for pin in pairs(currentNpcsToMark[zone] and currentNpcsToMark[zone][packName] or {}) do
-      if guidEntry(pin) == entry and guidCounter(pin) == counter then return true end
+      if guidEntry(pin) == entry then out[#out + 1] = guidCounter(pin) end
     end
   end
+  return out
 end
+
+-- Votes describe the instance map loaded now, so they live for the session and
+-- clear when the zone changes.
+local votes = {}
+local votesZone
 
 local trace
 
--- Only the anchor's type can move a shift, and only when it lands on no pin of
--- that type. Any Adherent of any pack fits a correct shift, so a mid-raid
--- /reload that first shows another pack's Adherent leaves it alone; one that
--- fits nothing proves the shift wrong, and pack 1 is pulled first, so it is
--- taken to be pack 1's anchor.
+-- Every pinned mob votes, once per GUID, for each shift that would put it on a
+-- pin of its type. The shift with the most votes wins: a type with one pin in
+-- the group settles it alone, and a single wrong pin cannot outvote the rest.
+-- Pins of one type often sit at consecutive counters (the 10-man Adherents are
+-- 388-38B), so one mob can leave a tie. A tie keeps the stored shift if it leads,
+-- else takes the one pack 1's anchor implies, since pack 1 is pulled first. A
+-- tie neither breaks leaves the group unsettled, and its packs mark nothing
+-- until another mob decides it, rather than risk duplicate icons in a pack.
 local function learnShift(guid, zone, entry)
   for _, g in ipairs(shiftGroups(zone)) do
-    if entry == guidEntry(g.anchor) then
+    local key = shiftKey(zone, g)
+    local v = votes[key]
+    if not v then v = { seen = {}, count = {}, anchor = {} }; votes[key] = v end
+    local pins = groupPins(g, zone, entry)
+    if #pins > 0 and not v.seen[guid] then
+      v.seen[guid] = true
       local counter = guidCounter(guid)
-      if not onPin(g, zone, entry, counter - groupShift(zone, g)) then
-        local shift = counter - guidCounter(g.anchor)
-        AutoMarkerDB.shifts[shiftKey(zone, g)] = { shift = shift, t = time() }
-        auto_print(c("AutoMarker: ", color.orange) .. g.name .. " (" .. g.raidSize .. ") counters shifted by " .. shift)
+      for _, p in ipairs(pins) do
+        v.count[counter - p] = (v.count[counter - p] or 0) + 1
+      end
+      if entry == guidEntry(g.anchor) then v.anchor[counter - guidCounter(g.anchor)] = true end
+
+      local best = 0
+      for _, n in pairs(v.count) do if n > best then best = n end end
+      local cur, pick = groupShift(zone, g)
+      if v.count[cur] == best then
+        pick = cur
+      else
+        local leaders, anchored = {}, {}
+        for s, n in pairs(v.count) do
+          if n == best then
+            leaders[#leaders + 1] = s
+            if v.anchor[s] then anchored[#anchored + 1] = s end
+          end
+        end
+        pick = (#leaders == 1 and leaders[1]) or (#anchored == 1 and anchored[1]) or nil
+      end
+
+      v.unsettled = pick == nil
+      if pick and pick ~= cur then
+        AutoMarkerDB.shifts[key] = { shift = pick, t = time() }
+        auto_print(c("AutoMarker: ", color.orange) .. g.name .. " (" .. g.raidSize .. ") counters shifted by " .. pick)
+      end
+      if v.unsettled then
+        trace(g.name .. " shift undecided, hover another of its mobs")
+      else
+        local fits
+        for _, p in ipairs(pins) do if counter - p == pick then fits = true end end
+        if not fits then trace(guid .. " fits no " .. g.name .. " pin at shift " .. pick .. ", pin data may be wrong") end
       end
     end
   end
@@ -202,16 +245,19 @@ local function guidToPack(id, zone)
   local _, _, _, _, maxPlayers = GetInstanceInfo()
   local shifted = {}
   for _, g in ipairs(shiftGroups(zone)) do
+    local v = votes[shiftKey(zone, g)]
     local s = groupShift(zone, g)
-    if s ~= 0 then
-      local pin = withCounter(id, guidCounter(id) - s)
+    if (v and v.unsettled) or s ~= 0 then
+      -- false: unsettled, so this group's packs match nothing
+      local pin = not (v and v.unsettled) and withCounter(id, guidCounter(id) - s)
       for packName in pairs(g.packs) do shifted[packName] = pin end
     end
   end
   for packName, packInfo in pairs(currentNpcsToMark[zone] or {}) do
     if not sizes[packName] or sizes[packName] == maxPlayers then
-      local pin = shifted[packName] or id
-      if packInfo[pin] then return packName, packInfo, pin end
+      local pin = shifted[packName]
+      if pin == nil then pin = id end
+      if pin and packInfo[pin] then return packName, packInfo, pin end
     end
   end
   for packName, packInfo in pairs(AutoMarkerDB.customNpcsToMark[zone] or {}) do
@@ -316,6 +362,7 @@ end
 autoMarker:RegisterEvent("ADDON_LOADED")
 autoMarker:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 autoMarker:RegisterEvent("PLAYER_REGEN_ENABLED")
+autoMarker:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 
 function autoMarker:Initialize()
   if not AutoMarkerDB then AutoMarkerDB = {} end
@@ -377,6 +424,13 @@ local function HandleEvent(self, event, ...)
     return
   end
 
+  -- Compared by name because the event can also fire without leaving the zone.
+  if event == "ZONE_CHANGED_NEW_AREA" then
+    local zone = GetRealZoneText()
+    if zone ~= votesZone then votes = {}; votesZone = zone end
+    return
+  end
+
   if event == "UPDATE_MOUSEOVER_UNIT" then
     OnMouseover()
     if sweep_on then
@@ -433,6 +487,7 @@ local function handleCommands(msg)
   elseif command == "shift" then
     if packName == "reset" then
       AutoMarkerDB.shifts = {}
+      votes = {}
       auto_print("AutoMarker: shifts cleared.")
     else
       local any

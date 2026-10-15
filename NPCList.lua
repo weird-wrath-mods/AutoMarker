@@ -27,9 +27,9 @@ local function addPack(instance, packName, npcs, raidSize)
 end
 
 -- A shift group is a set of GUID packs whose counters move together when the
--- instance map loads differently (a rebuild after kills, a server update). The
--- anchor is pack 1's only mob of its type, which is always the first pack
--- pulled, so seeing it under another counter gives the group's shift.
+-- instance map loads differently (a rebuild after kills, a server update). Every
+-- pinned mob votes on the shift; the anchor, pack 1's only mob of its type,
+-- breaks ties, since pack 1 is always the first pack pulled.
 defaultShiftGroups = {}
 local function addShiftGroup(instance, name, raidSize, anchor, packNames)
   defaultShiftGroups[instance] = defaultShiftGroups[instance] or {}
@@ -296,8 +296,8 @@ addPack("Ulduar", "uld_twilight_1_10", {
 addPack("Ulduar", "uld_twilight_2_10", {
   ["0xF13000841A000389"] = SKULL,    -- Twilight Adherent
   ["0xF13000841B00038E"] = CROSS,    -- Twilight Frost Mage
-  ["0xF13000841C000393"] = SQUARE,   -- Twilight Pyromancer
-  ["0xF13000842000039C"] = MOON,     -- Twilight Shadowblade
+  ["0xF13000841C000393"] = MOON,   -- Twilight Pyromancer
+  ["0xF13000842000039C"] = SQUARE,     -- Twilight Shadowblade
   ["0xF13000841E000398"] = UNMARKED, -- Twilight Guardian
 }, 10)
 
