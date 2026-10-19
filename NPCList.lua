@@ -178,6 +178,15 @@ addEntryPack("Ulduar", "uld_keepers", {
   [33722] = keeperMarks, -- Storm Tempered Keeper
 })
 
+-- Assembly of Iron: Brundir, Molgeim, Steelbreaker (Steelbreaker-last order).
+-- Both raid sizes carry the base entries in the GUID (a 25-man sweep read
+-- 32857/32867/32927), and each boss is unique, so entry match covers 10 and 25.
+addEntryPack("Ulduar", "uld_iron_council", {
+  [32857] = { SKULL },  -- Stormcaller Brundir
+  [32927] = { CROSS },  -- Runemaster Molgeim
+  [32867] = { SQUARE }, -- Steelbreaker
+})
+
 -- Twilight packs (before General Vezax)
 -- Priority: Adherent, Frost Mage, Pyromancer, Slayer, Shadowblade; icons in
 -- the order Skull, Cross, Square, Moon, Star, Circle. Diamond and Triangle are
