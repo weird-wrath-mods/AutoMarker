@@ -188,7 +188,7 @@ local function learnShift(guid, zone, entry)
       v.unsettled = pick == nil
       if pick and pick ~= cur then
         AutoMarkerDB.shifts[key] = { shift = pick, t = time() }
-        auto_print(c("AutoMarker: ", color.orange) .. g.name .. " (" .. g.raidSize .. ") counters shifted by " .. pick)
+        trace(g.name .. " (" .. g.raidSize .. ") counters shifted by " .. pick)
       end
       if v.unsettled then
         trace(g.name .. " shift undecided, hover another of its mobs")
