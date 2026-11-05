@@ -178,6 +178,16 @@ addEntryPack("Ulduar", "uld_keepers", {
   [33722] = keeperMarks, -- Storm Tempered Keeper
 })
 
+-- Guardian Lasher (Freya's wing, 4 spawns) and Dark Rune Thunderer (before
+-- Thorim, 2 spawns): one per pack, so a single skull whichever spawn it is.
+-- 25-man GUIDs carry these base entries too (Creature::CreateFromProto builds
+-- the GUID from the base entry; the difficulty entry only swaps the template).
+local skullOnly = { SKULL }
+addEntryPack("Ulduar", "uld_skull_singles", {
+  [33430] = skullOnly, -- Guardian Lasher
+  [33754] = skullOnly, -- Dark Rune Thunderer
+})
+
 -- Assembly of Iron: Brundir, Molgeim, Steelbreaker (Steelbreaker-last order).
 -- Both raid sizes carry the base entries in the GUID (a 25-man sweep read
 -- 32857/32867/32927), and each boss is unique, so entry match covers 10 and 25.
